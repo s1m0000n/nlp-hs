@@ -1,4 +1,4 @@
 .stack-work/
-**/*.txt
+private
 **/*.hp
 **/*.prof

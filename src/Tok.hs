@@ -6,22 +6,44 @@ module Tok where
 import Data.Maybe (isJust)
 import Control.Applicative ((<|>))
 import Data.PartialSemigroup
-import Data.Functor ((<&>))
+import Data.Functor ((<&>), ($>))
 import qualified Data.Text as T
 import Text.Read (readMaybe)
 import Data.Function ((&))
 import qualified Data.HashSet as HS
 import Data.Trie.Text (Trie, fromList, match)
+import Data.List (union)
+import Utils
+import Data.Time (UTCTime (UTCTime))
+import qualified Text.RE.TestBench.Parsers as TP
 
-data Pos = Pos {
-    start :: Int,
-    end :: Int
-}
-data Value = Word T.Text | Punct T.Text | Space T.Text | INum Integer | FNum Double deriving Show
-data Token = Token {
-    val :: Value,
-    pos :: Pos
-}
+data Pos = Pos 
+    { start :: Int
+    , end :: Int
+    }
+
+data Value 
+    = Word T.Text 
+    | Punct T.Text 
+    | Space T.Text 
+    | INum Integer 
+    | FNum Double 
+    | DateTime UTCTime 
+    | Special String T.Text -- key, value; for specific custom cases 
+    deriving Show
+
+data Prop 
+    = SentStart | SentEnd
+    | Joined
+    | FromSpecial
+    | Tag String
+    deriving (Show, Eq)
+
+data Token = Token 
+    { val :: Value
+    , pos :: Pos
+    , props :: [Prop]
+    }
 
 class MaybeValueWithType a where
     word :: a -> Maybe T.Text
@@ -29,45 +51,25 @@ class MaybeValueWithType a where
     space :: a -> Maybe T.Text
     inum :: a -> Maybe Integer
     fnum :: a -> Maybe Double
-
+    dateTime :: a -> Maybe UTCTime
+    special :: a -> Maybe (String, T.Text)
     num :: a -> Maybe Double
     num x = (fromInteger <$> inum x) <|> fnum x
-    isWord :: a -> Bool
-    isWord = isJust . word
-    isPunct :: a -> Bool
-    isPunct = isJust . punct
-    isSpace :: a -> Bool
-    isSpace = isJust . space
-    isINum :: a -> Bool
-    isINum = isJust . inum
-    isFNum :: a -> Bool
-    isFNum = isJust . fnum
-    isNum :: a -> Bool
-    isNum x = isINum x || isFNum x
-    wordP :: a -> (T.Text -> Bool) -> Bool
-    wordP tok p = case p <$> word tok of
-        Just True -> True
-        _ -> False
-    punctP :: a -> (T.Text -> Bool) -> Bool
-    punctP tok p = case p <$> punct tok of
-        Just True -> True
-        _ -> False
-    spaceP :: a -> (T.Text -> Bool) -> Bool
-    spaceP tok p = case p <$> space tok of
-        Just True -> True
-        _ -> False
-    inumP :: a -> (Integer -> Bool) -> Bool
-    inumP tok p = case p <$> inum tok of
-        Just True -> True
-        _ -> False
-    fNumEq :: a -> (Double -> Bool) -> Bool
-    fNumEq tok p = case p <$> fnum tok of
-        Just True -> True
-        _ -> False
-    numEq :: a -> (Double -> Bool) -> Bool
-    numEq tok p = case p <$> num tok of
-        Just True -> True
-        _ -> False
+
+isT :: (a -> Maybe b) -> a -> Bool
+isT t = isJust . t
+
+predT :: (a -> Maybe b) -> (b -> Bool) -> a -> Bool
+predT t p tok = isJustTrue $ p <$> t tok
+
+-- TODO: improve spectrum of such functions
+popT :: (Value -> Maybe b) -> [Token] -> Maybe ((Token, b), [Token])
+popT t (x:xs) = t (val x) <&> \pureValue -> ((x, pureValue), xs)
+popT _ [] = Nothing
+
+popIfData :: (Value -> Maybe b) -> (b -> Bool) -> [Token] -> Maybe ((Token, b), [Token])
+popIfData t p (x:xs) = t (val x) >>= \pureValue -> if p pureValue then Just ((x, pureValue), xs) else Nothing
+popIfData _ _ [] = Nothing
 
 class RawFromTokenVal a where
     raw :: Value -> a
@@ -97,19 +99,21 @@ instance MaybeValueWithType Value where
     inum _ = Nothing
     fnum (FNum f) = Just f
     fnum _ = Nothing
-
-instance MaybeValueWithType Token where
-    word = word . val
-    punct = punct . val
-    space = space . val
-    inum = inum . val
-    fnum = fnum . val
+    dateTime (DateTime dt) = Just dt
+    dateTime _ = Nothing
+    special (Special k v) = Just (k, v)
+    special _ = Nothing
 
 instance Show Token where
-    show (Token value pos) = show pos ++ " " ++ show value
+    show (Token value pos props)  = show pos ++ " " ++ show value ++ " (props: " ++ propsRepr ++ ")"
+      where
+        propsRepr = foldl (\acc n -> acc ++ show n ++ ", ") "" props
 
 instance PartialSemigroup Token where
-    (<>?) (Token value1 pos1) (Token value2 pos2) = value1 <>? value2 <&> \v -> Token v $ pos1 <> pos2
+    (<>?) (Token value1 pos1 props1) (Token value2 pos2 props2) = value1 <>? value2 <&> \v -> Token v pos props
+      where
+        pos = pos1 <> pos2
+        props = [Joined] `union` props1 `union` props2
 
 instance RawFromTokenVal T.Text where
     raw (Word t) = t
@@ -117,6 +121,8 @@ instance RawFromTokenVal T.Text where
     raw (Space t) = t
     raw (INum n) = T.pack $ show n
     raw (FNum n) = T.pack $ show n
+    raw (DateTime dt) = T.pack $ show dt
+    raw (Special _ t) = t
 
 instance RawFromTokenVal String where
     raw (Word t) = T.unpack t
@@ -124,110 +130,142 @@ instance RawFromTokenVal String where
     raw (Space t) = T.unpack t
     raw (INum n) = show n
     raw (FNum n) = show n
+    raw (DateTime dt) = show dt
+    raw (Special _ t) = T.unpack t
 
-data TokenizerConfig = TokenizerConfig {
-    specials :: Trie (T.Text -> Value, Int),
-    parseINum :: Bool,
-    parseFNum :: Bool,
-    fNumDels :: [T.Text],
-    removeSpaces :: Bool,
-    removeNumbers :: Bool,
-    removeWords :: [T.Text],
-    removePunct :: Bool,
-    eliminateHyphens :: Bool,
-    hyphens :: HS.HashSet T.Text 
-}
+data TokenizerConfig = TokenizerConfig 
+    { preWordMatchers :: Trie (T.Text -> Value, Int) -- trie of converter, length
+    , parseINum :: Bool
+    , parseFNum :: Bool
+    , fNumDels :: HS.HashSet T.Text
+    , removeSpaces :: Bool
+    , removeNumbers :: Bool
+    , removeWords :: [T.Text]
+    , removePunct :: Bool
+    , eliminateHyphens :: Bool
+    , hyphens :: HS.HashSet T.Text
+    , parseDateTime :: Bool
+    , specials :: [[Token] -> [Token]] -- modifies tokens list
+    }
+
 defaultTokenizerConfig :: TokenizerConfig
-defaultTokenizerConfig= TokenizerConfig {
-    specials=fromList $ zip puncts (map ((Punct,) . T.length) puncts) ++ zip spaces (map ((Space,) . T.length) spaces),
-    parseINum=True,
-    parseFNum=True,
-    fNumDels=["."],
-    removeSpaces=False,
-    removeNumbers=False,
-    removeWords=[],
-    removePunct=False,
-    eliminateHyphens=True,
-    hyphens=HS.singleton "-"
-} where 
+defaultTokenizerConfig= TokenizerConfig 
+    { preWordMatchers=fromList $ zip puncts (map ((Punct,) . T.length) puncts) ++ zip spaces (map ((Space,) . T.length) spaces)
+    , parseINum=True
+    , parseFNum=True
+    , fNumDels=HS.singleton "."
+    , removeSpaces=False
+    , removeNumbers=False
+    , removeWords=[]
+    , removePunct=False
+    , eliminateHyphens=True
+    , hyphens=HS.singleton "-"
+    , parseDateTime=False
+    , specials=[]
+    } 
+  where 
     puncts = ["...", ",", "!", "?", ".", ";", "(", ")", "[", "]", "{", "}", "--", "-"]
     spaces = ["\t", "\n", " "]
 
-special :: TokenizerConfig -> Int -> T.Text -> Maybe (Token, T.Text)
-special cfg posShift text = match (specials cfg) text >>= \(tokText, (type_, len), remainder) -> Just (tok tokText type_ len, remainder)
-    where tok tokText type_ len = Token {val=type_ tokText, pos=Pos {start=posShift, end=posShift + len}}
+matchPreWords :: TokenizerConfig -> Int -> T.Text -> Maybe (Token, T.Text)
+matchPreWords cfg posShift text = liftFst tok . to2h <$> match (preWordMatchers cfg) text 
+  where 
+    tok (tokText, (type_, len)) = Token 
+        { val=type_ tokText
+        , pos=Pos 
+            { start=posShift
+            , end=posShift + len
+            }
+        , props=[]
+        }
 
--- PERF: very slow tokenization with too much ram used
--- to be investigated further, for now - just leaving for TokFast
-specialOrChar :: TokenizerConfig -> Int -> T.Text -> Maybe (Token, T.Text)
-specialOrChar cfg posShift text = T.uncons text >>= \(x, xs) -> 
-    special cfg posShift text <|> Just (Token {val=Word $ T.singleton x, pos=Pos {start=posShift, end=posShift + 1}}, xs)
+preWordsOrChar :: TokenizerConfig -> Int -> T.Text -> Maybe (Token, T.Text)
+preWordsOrChar cfg posShift text = matchPreWords cfg posShift text 
+    <|> liftFst (\x -> Token 
+            { val=Word $ T.singleton x
+            , pos=Pos 
+                { start=posShift
+                , end=posShift + 1
+                }
+            , props=[]
+            }
+        ) <$> T.uncons text
 
-tokenizeSpecials :: TokenizerConfig -> Int -> T.Text -> [Token]
-tokenizeSpecials _ _ "" = []
-tokenizeSpecials cfg posShift text = case specialOrChar cfg posShift text of
+tokenizePreWords :: TokenizerConfig -> Int -> T.Text -> [Token]
+tokenizePreWords _ _ "" = []
+tokenizePreWords cfg posShift text = case preWordsOrChar cfg posShift text of
     Nothing -> []
-    Just (token, tailToks) -> token : tokenizeSpecials cfg (end $ pos token) tailToks
+    Just (token, tailToks) -> token : tokenizePreWords cfg (end $ pos token) tailToks
 
--- PERF: optimize as eliminateNLHyphens
+nextTok :: ([Token] -> [Token]) -> [Token] -> [Token]
+nextTok f (x:xs) = x : f xs
+nextTok _ [] = []
+
 parseWords :: [Token] -> [Token]
-parseWords (x1:x2:xs)
-    | isJust (word x1) && isJust (word x2) = parseWords $ merged ++ xs
-    | otherwise = x1 : parseWords (x2:xs)
-        where
-            merged = case x1 <>? x2 of
-                Just tok -> [tok]
-                Nothing -> [x1, x2]
-parseWords xs = xs
+parseWords toks = nextTok parseWords toks 
+    <? popT word toks >>|^ popT word >>= \((w1, _), ((w2, _), t)) -> w1 <>? w2 <&> parseWords . (: t)
 
--- PERF: optimize as eliminateNLHyphens
+-- Post-processing
+
+-- TODO: refactor (<? nextTok (parseFNums cfg) toks) parts to a single upper level func
+-- Example: f = inumParser <|> fnumParser <|> ... ?> nextTok f
+-- use: https://hackage.haskell.org/package/cond-0.4.1.1/docs/Control-Conditional.html
+
 parseINums :: [Token] -> [Token]
-parseINums (x:xs) = case readMaybe (rawVal x) of
-    Just num -> x {val=INum num} : tailToks
-    _ -> x : tailToks
-    where tailToks = parseINums xs
-parseINums [] = []
+parseINums toks = nextTok parseINums toks 
+    <? popT word toks >>= \((w1, w1d), t) -> readMaybe (T.unpack w1d) <&> \i -> w1 {val=INum i} : parseINums t
 
--- PERF: optimize as eliminateNLHyphens
 parseFNums :: TokenizerConfig -> [Token] -> [Token]
-parseFNums cfg (i1 : dot : i2 : xs)
-    | isJust (sequence [word i1, word i2, punct dot]) && elem (rawVal dot) (fNumDels cfg)
-        = case readMaybe $ concatMap rawVal [i1, dot, i2] of 
-            Nothing -> i1 : dot : parseFNums cfg (i2 : xs)
-            Just f -> Token {val=FNum f, pos = pos i1 <> pos i2} : parseFNums cfg xs
-    | otherwise = i1 : parseFNums cfg (dot : i2 : xs)
-parseFNums _ xs = xs
+parseFNums cfg toks = nextTok (parseFNums cfg) toks
+    <? popT word toks 
+    >>|^ popIfData punct (`HS.member` fNumDels cfg)
+    >>|^.|^ popT word
+    >>= \((w1, w1Data), ((d, dData), ((w2, _), t))) -> Token {val=Word $ w1Data <> dData, pos=pos w1 <> pos d, props=props w1 `union` props d} <>? w2 
+    >>= \w -> word (val w) >>= readMaybe . T.unpack
+    <&> \f -> w {val=FNum f} : parseFNums cfg t
 
 eliminateNLHyphens :: TokenizerConfig -> [Token] -> [Token]
 eliminateNLHyphens cfg (w1 : h : nl : w2 : ts)
-    | punctP h (`HS.member` hyphens cfg) && spaceP nl (== "\n") = 
-        let mbNewWord = word w1 >>= \w1t -> word w2 <&> \w2t -> Token {val=Word $ T.concat [w1t, T.singleton '-', w2t], pos=pos w1 <> pos w2}
-        in case mbNewWord of 
+    | predT punct (`HS.member` hyphens cfg) (val h) && predT space (== "\n") (val nl) = 
+      let mbNewWord = word (val w1) >>= \w1t -> word (val w2) >>= \w2t 
+            -> w1 <>? w2 <&> \tok -> tok { val=Word $ T.concat [w1t, T.singleton '-', w2t] }
+      in case mbNewWord of 
             Just newWord -> newWord : eliminateNLHyphens cfg ts
             Nothing -> w1 : h : nl : eliminateNLHyphens cfg (w2 : ts)
     | otherwise = w1 : eliminateNLHyphens cfg (h : nl : w2 : ts)
 eliminateNLHyphens _ xs = xs
 
-(-?>) :: Bool -> (a -> a) -> (a -> a)
-(-?>) True f = f
-(-?>) False _ = id
+-- WARN: does not work!
+-- PERF: unoptimized (worse than naive); experimental
+-- parseDateTimes :: [Token] -> [Token]
+-- parseDateTimes toks = nextTok parseDateTimes toks
+--     <? tryFindLongest toks
+--     <&> \((dt, dtData), t) -> dt {val=DateTime dtData} : parseDateTimes t
+--   where
+--     tryFindLongest = (\((dtTok, _, mbDtData), acc) -> mbDtData <&> \dtData -> ((dtTok, dtData), acc)) . tryFindLongestHelper
+--     tryFindLongestHelper = foldlUntil (\(accTok, accText, _) next -> 
+--         (\v -> word v <|> punct v) (val next) >>= \nextText -> 
+--         let newAccText = accText <> nextText
+--             in TP.parseDateTime newAccText >>= (\dt -> (,newAccText, Just dt) <$> (accTok <>? next))
+--         ) (Token{val=Word "", pos=Pos{start=0, end=0}, props=[]}, "", Nothing)
 
 applyPostprocessing :: TokenizerConfig -> [Token] -> [Token]
 applyPostprocessing cfg tokens = tokens 
+    -- & parseDateTime cfg -?> parseDateTimes
     & parseFNum cfg -?> parseFNums cfg
     & parseINum cfg -?> parseINums
-    & removeSpaces cfg -?> filter (not . isSpace)
-    & removeNumbers cfg -?> filter (not . isNum)
+    & removeSpaces cfg -?> filter (not . isT space . val)
+    & removeNumbers cfg -?> filter (not . isT num . val)
     & eliminateHyphens cfg -?> eliminateNLHyphens cfg
-    & removePunct cfg -?> filter (not . isPunct)
+    & removePunct cfg -?> filter (not . isT punct . val)
     & not (null (removeWords cfg)) -?> 
-        filter (\t -> case word t of
+        filter (\t -> case word $ val t of
             Just w -> notElem w $ removeWords cfg
             Nothing -> True
         )
 
 tokenize :: TokenizerConfig -> T.Text -> [Token]
-tokenize cfg text = tokenizeSpecials cfg 0 text & parseWords & applyPostprocessing cfg 
+tokenize cfg text = foldr (.) (applyPostprocessing cfg) (specials cfg) $ parseWords $ tokenizePreWords cfg 0 text 
 
 fromTokens :: RawFromTokenVal a => [Token] -> [a]
 fromTokens = map rawVal

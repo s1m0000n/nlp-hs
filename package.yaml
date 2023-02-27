@@ -30,6 +30,8 @@ dependencies:
 - unordered-containers
 - text-trie
 - text-metrics
+- time
+- regex
 
 ghc-options:
 - -Wall
@@ -43,6 +45,16 @@ ghc-options:
 - -Wredundant-constraints
 - -O2
 - -XFlexibleInstances
+- -fexpose-all-unfoldings
+- -fspecialise-aggressively
+- -fasm-shortcutting
+- -feager-blackholing
+- -fexcess-precision
+- -ffun-to-thunk
+- -flate-dmd-anal
+- -fspec-constr-keen
+- -flate-specialise
+- -fstatic-argument-transformation
 
 library:
   source-dirs: src

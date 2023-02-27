@@ -70,12 +70,6 @@ isJustTrue = \case
 (-?>) :: Bool -> (a -> a) -> (a -> a)
 (-?>) True f = f
 (-?>) False _ = id
-infixr 0 ?>
-(?>) :: Maybe a -> a -> a
-(?>) = flip fromMaybe
-infixr 0 <?
-(<?) :: a -> Maybe a -> a
-(<?) = fromMaybe
 
 -- TODO: extend definition ([t] to Foldable t?)
 foldlUntil :: (a -> t -> Maybe a) -> a -> [t] -> (a, [t])

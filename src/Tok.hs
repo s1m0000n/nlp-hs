@@ -3,19 +3,18 @@
 
 module Tok where
 
-import Data.Maybe (isJust)
+import Data.Maybe (isJust, fromMaybe)
 import Control.Applicative ((<|>))
 import Data.PartialSemigroup
 import Data.Functor ((<&>), ($>))
 import qualified Data.Text as T
 import Text.Read (readMaybe)
-import Data.Function ((&))
 import qualified Data.HashSet as HS
 import Data.Trie.Text (Trie, fromList, match)
 import Data.List (union)
 import Utils
 import Data.Time (UTCTime (UTCTime))
-import qualified Text.RE.TestBench.Parsers as TP
+import Control.Conditional (guard, (<|))
 
 data Pos = Pos 
     { start :: Int
@@ -42,7 +41,7 @@ data Prop
 data Token = Token 
     { val :: Value
     , pos :: Pos
-    , props :: [Prop]
+    , props :: [Prop] -- TODO: replace with a set
     }
 
 class MaybeValueWithType a where
@@ -140,7 +139,7 @@ data TokenizerConfig = TokenizerConfig
     , fNumDels :: HS.HashSet T.Text
     , removeSpaces :: Bool
     , removeNumbers :: Bool
-    , removeWords :: [T.Text]
+    , removeWords :: HS.HashSet T.Text
     , removePunct :: Bool
     , eliminateHyphens :: Bool
     , hyphens :: HS.HashSet T.Text
@@ -156,7 +155,7 @@ defaultTokenizerConfig= TokenizerConfig
     , fNumDels=HS.singleton "."
     , removeSpaces=False
     , removeNumbers=False
-    , removeWords=[]
+    , removeWords=HS.empty
     , removePunct=False
     , eliminateHyphens=True
     , hyphens=HS.singleton "-"
@@ -203,69 +202,58 @@ nextTok _ [] = []
 
 parseWords :: [Token] -> [Token]
 parseWords toks = nextTok parseWords toks 
-    <? popT word toks >>|^ popT word >>= \((w1, _), ((w2, _), t)) -> w1 <>? w2 <&> parseWords . (: t)
+    <| popT word toks 
+    >>|^ popT word 
+    >>= \((w1, _), ((w2, _), t)) -> w1 <>? w2 
+    <&> parseWords . (: t)
 
--- Post-processing
+inumParser :: [Token] -> Maybe [Token]
+inumParser toks =
+    popT word toks 
+    >>= \((w1, w1d), t) -> readMaybe (T.unpack w1d) 
+    <&> \i -> (w1 {val=INum i}) : t
 
--- TODO: refactor (<? nextTok (parseFNums cfg) toks) parts to a single upper level func
--- Example: f = inumParser <|> fnumParser <|> ... ?> nextTok f
--- use: https://hackage.haskell.org/package/cond-0.4.1.1/docs/Control-Conditional.html
-
-parseINums :: [Token] -> [Token]
-parseINums toks = nextTok parseINums toks 
-    <? popT word toks >>= \((w1, w1d), t) -> readMaybe (T.unpack w1d) <&> \i -> w1 {val=INum i} : parseINums t
-
-parseFNums :: TokenizerConfig -> [Token] -> [Token]
-parseFNums cfg toks = nextTok (parseFNums cfg) toks
-    <? popT word toks 
+fnumParser :: TokenizerConfig -> [Token] -> Maybe [Token]
+fnumParser cfg toks = 
+    popT word toks 
     >>|^ popIfData punct (`HS.member` fNumDels cfg)
     >>|^.|^ popT word
     >>= \((w1, w1Data), ((d, dData), ((w2, _), t))) -> Token {val=Word $ w1Data <> dData, pos=pos w1 <> pos d, props=props w1 `union` props d} <>? w2 
     >>= \w -> word (val w) >>= readMaybe . T.unpack
-    <&> \f -> w {val=FNum f} : parseFNums cfg t
+    <&> \f -> (w {val=FNum f}) : t
 
-eliminateNLHyphens :: TokenizerConfig -> [Token] -> [Token]
-eliminateNLHyphens cfg (w1 : h : nl : w2 : ts)
-    | predT punct (`HS.member` hyphens cfg) (val h) && predT space (== "\n") (val nl) = 
-      let mbNewWord = word (val w1) >>= \w1t -> word (val w2) >>= \w2t 
-            -> w1 <>? w2 <&> \tok -> tok { val=Word $ T.concat [w1t, T.singleton '-', w2t] }
-      in case mbNewWord of 
-            Just newWord -> newWord : eliminateNLHyphens cfg ts
-            Nothing -> w1 : h : nl : eliminateNLHyphens cfg (w2 : ts)
-    | otherwise = w1 : eliminateNLHyphens cfg (h : nl : w2 : ts)
-eliminateNLHyphens _ xs = xs
 
--- WARN: does not work!
--- PERF: unoptimized (worse than naive); experimental
--- parseDateTimes :: [Token] -> [Token]
--- parseDateTimes toks = nextTok parseDateTimes toks
---     <? tryFindLongest toks
---     <&> \((dt, dtData), t) -> dt {val=DateTime dtData} : parseDateTimes t
---   where
---     tryFindLongest = (\((dtTok, _, mbDtData), acc) -> mbDtData <&> \dtData -> ((dtTok, dtData), acc)) . tryFindLongestHelper
---     tryFindLongestHelper = foldlUntil (\(accTok, accText, _) next -> 
---         (\v -> word v <|> punct v) (val next) >>= \nextText -> 
---         let newAccText = accText <> nextText
---             in TP.parseDateTime newAccText >>= (\dt -> (,newAccText, Just dt) <$> (accTok <>? next))
---         ) (Token{val=Word "", pos=Pos{start=0, end=0}, props=[]}, "", Nothing)
+nlHyphensParser :: TokenizerConfig -> [Token] -> Maybe [Token]
+nlHyphensParser cfg toks =
+    popT word toks
+    >>|^ popIfData punct (`HS.member` hyphens cfg)
+    >>|^.|^ popIfData space (== "\n") -- TODO: replace with hash set of newlines
+    >>|^.|^.|^ popT word
+    >>= \((w1, _), (_, (_, ((w2, _), t)))) -> w1 <>? w2
+    <&> (: t)
 
-applyPostprocessing :: TokenizerConfig -> [Token] -> [Token]
-applyPostprocessing cfg tokens = tokens 
-    -- & parseDateTime cfg -?> parseDateTimes
-    & parseFNum cfg -?> parseFNums cfg
-    & parseINum cfg -?> parseINums
-    & removeSpaces cfg -?> filter (not . isT space . val)
-    & removeNumbers cfg -?> filter (not . isT num . val)
-    & eliminateHyphens cfg -?> eliminateNLHyphens cfg
-    & removePunct cfg -?> filter (not . isT punct . val)
-    & not (null (removeWords cfg)) -?> 
-        filter (\t -> case word $ val t of
-            Just w -> notElem w $ removeWords cfg
-            Nothing -> True
-        )
+extrasParser :: TokenizerConfig -> [Token] -> [Token]
+extrasParser cfg toks = nextTok (extrasParser cfg) $ toks <| 
+    (guard (parseINum cfg) *> inumParser toks 
+    <|> guard (parseFNum cfg) *> fnumParser cfg toks
+    <|> guard (eliminateHyphens cfg) *> nlHyphensParser cfg toks)
+
+filterWords :: TokenizerConfig -> [Token] -> [Token]
+filterWords cfg toks = nextTok (filterWords cfg) toks <| popIfData word (`HS.member` removeWords cfg) toks <&> snd
+
+applyFilters :: TokenizerConfig -> [Token] -> [Token]
+applyFilters cfg = 
+    filterWords cfg
+    . (removePunct cfg -?> filter (not . isT punct . val))
+    . (removeNumbers cfg -?> filter (not . isT num . val))
+    . (removeSpaces cfg -?> filter (not . isT space . val))
 
 tokenize :: TokenizerConfig -> T.Text -> [Token]
-tokenize cfg text = foldr (.) (applyPostprocessing cfg) (specials cfg) $ parseWords $ tokenizePreWords cfg 0 text 
+tokenize cfg = 
+    foldr (.) (applyFilters cfg) (specials cfg) 
+    . extrasParser cfg
+    . parseWords 
+    . tokenizePreWords cfg 0
 
 fromTokens :: RawFromTokenVal a => [Token] -> [a]
 fromTokens = map rawVal

@@ -35,7 +35,6 @@ Some ablation experiments have shown that the most important is agressive inlini
 
 ## Plans
 
-- Move to a Parsec-like approach for postpocessing (huge `TODO` in Tok.hs)
 - Fix export lists & add basic documentations on exported entities
 - Add date & time, email, phone parsing
 - Reimplement fast stemming | lematization or just integrate some ready solution

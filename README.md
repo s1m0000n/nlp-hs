@@ -2,7 +2,7 @@
 
 Natural Language Processing tools for Haskell with emphasis on performance
 
-**This library is very experimental & being actively developed with massive breaking changes**
+⚠️ **This library is very experimental & being actively developed with massive breaking changes**
 
 ## Features
 

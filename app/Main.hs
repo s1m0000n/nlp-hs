@@ -24,15 +24,15 @@ main = do
     args <- getArgs
 
     -- 1. Just pretty print tokens of single file
-    -- Tio.readFile (head args) >>= Tio.putStr . prettyTextTokens . tokenize defaultTokenizerConfig
+    -- Tio.readFile (head args) >>= Tio.putStr . prettyTextTokens . tokenize defaultTokenizerConfig {parseMoney=True}
 
     -- 2. ~Topic modelling with TF-IDF on multiple files
     docs <- forM args \fileName -> do
         text <- Tio.readFile fileName
-        let typedTokens = tokenize (defaultTokenizerConfig {parseDateTime=True}) text
+        let typedTokens = tokenize defaultTokenizerConfig text
         let cleanTokens = filterSW defaultStopwords $ map T.toLower $ fromTokens $ filter (isT word . val) typedTokens :: Doc
-        return $ ngrams [1, 2, 3] cleanTokens
-        -- return cleanTokens
+        -- return $ ngrams [1, 2, 3] cleanTokens
+        return cleanTokens
     let megaDoc = foldr1 (++) docs
     let vocab = buildVocab megaDoc
     bows <- mapM (bowMVecIO vocab) docs

@@ -17,14 +17,14 @@ Two tokenizers are being developed right now:
 The motivation here is extending beyond the typical tokenization scope, enabling customization with still decent performance.
 
 - "Typed tokenizer" - the one distinguising text, numbers, dates etc.
-- Built-in optional parsing for punctuation, spaces, integral, floating point scalars
-- Cleanup & fixes, such as detecting hyphens & safe word merging
+- Built-in optional parsing for punctuation, spaces, integral, floating point scalars, money (& more stuff comming soon)
+- Cleanup & fixes, such as detecting hyphens & safe word merging, spaces merging
 - Extracted spans, pointing to a slice in source text
 - Properties system which lets us propagate tags through the whole pipeline
 
 ##### Performance estimations
 
-~ 2-3 times slower than the fast one with current optimizations in `package.yaml` and default configuration
+~ 3 times slower than the fast one with current optimizations in `package.yaml` and default configuration
 Some ablation experiments have shown that the most important is agressive inlining.
 
 ### Bag of Words (& derived models)
@@ -32,6 +32,12 @@ Some ablation experiments have shown that the most important is agressive inlini
 - Performant Vector-based BoW model builder
 - TF-IDF
 - Token-level n-gram support
+
+## Observations
+
+### Typed tokenizer
+
+- Longer & more type-diverse patterns are much faster as less cases are checked 
 
 ## Plans
 

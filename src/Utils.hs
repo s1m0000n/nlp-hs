@@ -4,10 +4,9 @@
 module Utils where
 
 import Data.Ord (comparing)
-
 import qualified Data.Vector.Unboxed as VU
 import qualified Data.Vector.Algorithms.Intro as VAlgo
-import Data.Maybe (fromMaybe)
+import qualified Data.Text as T
 
 argSort :: (Ord a, VU.Unbox a) => VU.Vector a -> VU.Vector Int
 argSort xs = VU.map fst $ VU.create $ do
@@ -44,11 +43,16 @@ biLiftM f0 f1 t = f0 ^| t >>= (f1 |^)
 (|^.|^.|^.|^.|^) :: Functor f => (t1 -> f a) -> (t6, (t5, (t4, (t3, (t2, t1))))) -> f (t6, (t5, (t4, (t3, (t2, a)))))
 (|^.|^.|^.|^.|^) = (|^) . (|^.|^.|^.|^)
 
+(|^.^|) :: Functor f => (t2 -> f r) -> (t1, (t2, t3)) -> f (t1, (r, t3))
+(|^.^|) = (|^) . (^|)
+
 -- "Contextual" lifting chained infix
 (>>|^) :: Monad m => m (t1, t2) -> (t2 -> m r) -> m (t1, r)
 (>>|^) i f = i >>= (f |^)
 (>>|^.|^) :: Monad m => m (t1, (t2, t3)) -> (t3 -> m r) -> m (t1, (t2, r))
 (>>|^.|^) i f = i >>= (f |^.|^)
+(>>|^.^|) :: Monad m => m (t1, (t2, t3)) -> (t2 -> m r) -> m (t1, (r, t3))
+(>>|^.^|) i f = i >>= (f |^.^|)
 (>>|^.|^.|^) :: Monad m => m (t1, (t2, (t3, t4))) -> (t4 -> m r) -> m (t1, (t2, (t3, r)))
 (>>|^.|^.|^) i f = i >>= (f |^.|^.|^)
 (>>|^.|^.|^.|^) :: Monad m => m (t5, (t4, (t3, (t2, t1)))) -> (t1 -> m a) -> m (t5, (t4, (t3, (t2, a))))
@@ -83,3 +87,5 @@ foldl1Until :: (t -> t -> Maybe t) -> [t] -> Maybe (t, [t])
 foldl1Until f (x:xs) = Just $ foldlUntil f x xs
 foldl1Until _ [] = Nothing
 
+(===) :: T.Text -> T.Text -> Bool
+(===) x y = T.toCaseFold x == T.toCaseFold y

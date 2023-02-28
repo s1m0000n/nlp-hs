@@ -40,6 +40,7 @@ library
   build-depends:
       base >=4.7 && <5
     , cond
+    , hashable
     , ordered-containers
     , partial-semigroup
     , regex
@@ -63,6 +64,7 @@ executable nlp-hs-exe
   build-depends:
       base >=4.7 && <5
     , cond
+    , hashable
     , nlp-hs
     , ordered-containers
     , partial-semigroup
@@ -88,6 +90,7 @@ test-suite nlp-hs-test
   build-depends:
       base >=4.7 && <5
     , cond
+    , hashable
     , nlp-hs
     , ordered-containers
     , partial-semigroup

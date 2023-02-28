@@ -1,10 +1,10 @@
 name:                nlp-hs
 version:             0.1.0.0
-github:              "githubuser/nlp-hs"
+github:              "s1m0000n/nlp-hs"
 license:             BSD3
-author:              "Author name here"
-maintainer:          "example@example.com"
-copyright:           "2023 Author name here"
+author:              "Semyon Pogoreltsev"
+maintainer:          "pogorelcevsa@gmail.com"
+copyright:           "2023 Semyon Pogoreltsev"
 
 extra-source-files:
 - README.md

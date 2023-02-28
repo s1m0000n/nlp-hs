@@ -1,4 +1,4 @@
-# Yet Unnamed Haskell NLP library
+# Hermes - fast & featureful Haskell NLP library
 
 Natural Language Processing tools for Haskell with emphasis on performance
 
@@ -46,4 +46,10 @@ Some ablation experiments have shown that the most important is agressive inlini
 - Reimplement fast stemming | lematization or just integrate some ready solution
 - Naive Bayes classifier (based on BoW) 
 - Adopt & nativify some ML-library, add some examples (especially to do NBSVM)
+
+## Project naming
+
+[Hermes](https://en.wikipedia.org/wiki/Hermes) is a member of 12 Olympians in ancient Greek mythology, divine messenger & god of a lot of stuff, including eloquence & known for his ability to move quickly.
+So, Hermes is a good collective image of what this library is moving torwards for: deeper language understanding, code expressiveness & performance.
+In addition it just cool & do we want more ancient gods-libraries in Haskell! (yep, Aeson as inspiration)
 

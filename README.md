@@ -33,6 +33,23 @@ Some ablation experiments have shown that the most important is agressive inlini
 - TF-IDF
 - Token-level n-gram support
 
+## Complementary modules
+
+- Good overview of other Haskell linguistics & NLP modules: https://wiki.haskell.org/Applications_and_libraries/Linguistics
+- [Data Haskell](http://www.datahaskell.org/docs/community/current-environment.html) provides more info on general ML & stuff
+
+### Morphology
+
+#### Word forms
+
+- Stemming with [NLP.Snowball](https://hackage.haskell.org/package/snowball-1.0.0.1/docs/NLP-Snowball.html) - Haskell bindings to Snowball library (also uses `Text`)
+
+### Machine learning
+
+- Naive Bayes classifier with [Hext](https://hackage.haskell.org/package/hext)
+- Classic algorithms with [HLearn](https://github.com/mikeizbicki/HLearn) 
+- Deep Learning with [Grenade](https://hackage.haskell.org/package/grenade). It's planned to develop the lib in this way for now
+
 ## Observations
 
 ### Typed tokenizer
@@ -41,11 +58,11 @@ Some ablation experiments have shown that the most important is agressive inlini
 
 ## Plans
 
+- Provide a single coherent interface for common ML approaches (in context of NLP)
+- Provide examples (separate `<project root>/examples`)
+- Automated high-level pipelines system
 - Fix export lists & add basic documentations on exported entities
 - Add date & time, email, phone parsing
-- Reimplement fast stemming | lematization or just integrate some ready solution
-- Naive Bayes classifier (based on BoW) 
-- Adopt & nativify some ML-library, add some examples (especially to do NBSVM)
 
 ## Project naming
 

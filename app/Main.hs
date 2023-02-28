@@ -8,7 +8,6 @@ import Tok
 -- import TokFast
 import Preproc (filterSW, defaultStopwords, ngrams)
 import Bow ( buildVocab, bowMVecIO, tfIdfs )
-import Doc ( Doc )
 import qualified Data.Text.IO as Tio
 import qualified Data.Text as T
 import System.Environment (getArgs)
@@ -16,6 +15,11 @@ import qualified Data.Vector as V
 import Utils (argSort)
 import Data.Set.Ordered (elemAt)
 import Control.Monad (forM, forM_)
+
+-- for dynamic
+-- import Utils (isJustTrue)
+-- import Data.Dynamic (fromDynamic)
+-- import Data.Functor ((<&>))
 
 
 main :: IO ()
@@ -29,12 +33,13 @@ main = do
     -- 2. ~Topic modelling with TF-IDF on multiple files
     docs <- forM args \fileName -> do
         text <- Tio.readFile fileName
-        let typedTokens = tokenize defaultTokenizerConfig text
-        let cleanTokens = filterSW defaultStopwords $ map T.toLower $ fromTokens $ filter (isT word . val) typedTokens :: Doc
-        -- return $ ngrams [1, 2, 3] cleanTokens
-        return cleanTokens
-    let megaDoc = foldr1 (++) docs
-    let vocab = buildVocab megaDoc
+        return 
+            $ filterSW defaultStopwords 
+            $ ngrams [1, 2, 3]
+            $ map T.toLower $ fromTokens 
+            $ filter (isT word . val) 
+            $ tokenize defaultTokenizerConfig text
+    let vocab = buildVocab $ foldr1 (++) docs
     bows <- mapM (bowMVecIO vocab) docs
     let scores = tfIdfs bows
     forM_ (zip [0..] args) \(i, fileName) -> do
@@ -45,3 +50,6 @@ main = do
     -- PERF: This eats up too much memory. Parallelized?
     -- texts <- mapM Tio.readFile args
     -- let docs = for texts $ filterSW defaultStopwords . map T.toLower . fromTokens . filter (isT word . val) . tokenize defaultTokenizerConfig
+    
+    -- 4. Dynamic special properties
+     -- $ filter (predT special (\(k, dv) -> k == "a" && isJustTrue ((== 1) <$> (fromDynamic dv :: Maybe Integer))) . val) 

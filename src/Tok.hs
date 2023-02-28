@@ -20,6 +20,7 @@ import Control.Conditional (guard, (<|), (|>))
 import Data.Hashable (Hashable)
 import GHC.Generics (Generic)
 import Data.List (uncons)
+import Data.Dynamic (Dynamic)
 
 data Pos = Pos 
     { start :: Int
@@ -34,11 +35,11 @@ data Value
     | FNum Double 
     | Money Double T.Text
     | DateTime UTCTime -- not implemented yet
-    | Special String T.Text -- key, value; for specific custom cases 
+    | Special String Dynamic -- key, value; for specific custom cases 
     deriving Show
 
 data Prop 
-    = SentStart | SentEnd
+    = SentStart | SentEnd -- TODO: implement detection
     | Joined
     | FromSpecial
     | NewLine
@@ -59,7 +60,7 @@ class MaybeValueWithType a where
     inum :: a -> Maybe Integer
     fnum :: a -> Maybe Double
     dateTime :: a -> Maybe UTCTime
-    special :: a -> Maybe (String, T.Text)
+    special :: a -> Maybe (String, Dynamic)
     num :: a -> Maybe Double
     num x = (fromInteger <$> inum x) <|> fnum x
 
@@ -150,7 +151,7 @@ instance RawFromTokenVal T.Text where
     raw (FNum n) = T.pack $ show n
     raw (Money i c) = T.pack (show i) <> T.pack (show c)
     raw (DateTime dt) = T.pack $ show dt
-    raw (Special _ t) = t
+    raw (Special k v) = T.pack $ raw $ Special k v
 
 instance RawFromTokenVal String where
     raw (Word t) = T.unpack t
@@ -160,7 +161,7 @@ instance RawFromTokenVal String where
     raw (FNum n) = show n
     raw (Money i c) = show i ++ show c
     raw (DateTime dt) = show dt
-    raw (Special _ t) = T.unpack t
+    raw (Special k v) = k ++ " -> " ++ show v
 
 
 data SameSpacesResolutionStrategy = None 
@@ -170,7 +171,9 @@ data SameSpacesResolutionStrategy = None
 
 -- NOTE: PERF comments are for default config with this option changed only
 data TokenizerConfig = TokenizerConfig 
+    -- base parsing options
     { preWordMatchers :: Trie (T.Text -> Value, Int)                    -- trie of converter, length
+    , lowerCase :: Bool
     -- extras parsing
     , parseINum :: Bool                                                 -- PERF: ~1/5 added time
     , parseFNum :: Bool                                                 -- PERF: would depend on type of text, for most texts - insignificant
@@ -210,9 +213,10 @@ defaultTokenizerConfig= TokenizerConfig
     , specials = []
     , postParser=id
     , newLines=HS.singleton "\n"
-    , sameSpacesResolutionStrategy=Join
+    , sameSpacesResolutionStrategy=Skip
     , parseMoney=True
     , currenciesParsers = usDollarParser : plainCurrenciesParsers 
+    , lowerCase=True
     } 
   where 
     puncts = ["...", ",", "!", "?", ".", ";", "(", ")", "[", "]", "{", "}", "--", "-"]
@@ -362,6 +366,7 @@ tokenize cfg =
     . independentExtrasLevel0Parser cfg         -- independent extras (built-in)
     . wordParser
     . spacePunctLowLevelParser cfg 0
+    . (lowerCase cfg -?> T.toLower)
 
 fromTokens :: RawFromTokenVal a => [Token] -> [a]
 fromTokens = map rawVal

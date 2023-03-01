@@ -5,8 +5,6 @@
 module Main (main) where
 
 import Tok
--- import TokFast
-import Preproc (filterSW, defaultStopwords, ngrams)
 import Bow ( buildVocab, bowMVecIO, tfIdfs )
 import qualified Data.Text.IO as Tio
 import qualified Data.Text as T
@@ -15,6 +13,7 @@ import qualified Data.Vector as V
 import Utils (argSort)
 import Data.Set.Ordered (elemAt)
 import Control.Monad (forM, forM_)
+import Pipeline (defaultTokenLevelPipeline)
 
 -- for dynamic
 -- import Utils (isJustTrue)
@@ -34,11 +33,10 @@ main = do
     docs <- forM args \fileName -> do
         text <- Tio.readFile fileName
         return 
-            $ filterSW defaultStopwords 
-            $ ngrams [1, 2, 3]
+            -- $ ngrams [1, 2, 3]
             $ map T.toLower $ fromTokens 
             $ filter (isT word . val) 
-            $ tokenize defaultTokenizerConfig text
+            $ defaultTokenLevelPipeline text 
     let vocab = buildVocab $ foldr1 (++) docs
     bows <- mapM (bowMVecIO vocab) docs
     let scores = tfIdfs bows

@@ -37,6 +37,8 @@ data Value
     | DateTime UTCTime -- not implemented yet
     | Special String Dynamic -- key, value; for specific custom cases 
     deriving Show
+-- TODO:
+-- (word, "/", ...) => FilePath
 
 data Prop 
     = SentStart | SentEnd -- TODO: implement detection
@@ -178,23 +180,25 @@ data TokenizerConfig = TokenizerConfig
     , parseINum :: Bool                                                 -- PERF: ~1/5 added time
     , parseFNum :: Bool                                                 -- PERF: would depend on type of text, for most texts - insignificant
     , sameSpacesResolutionStrategy :: SameSpacesResolutionStrategy      -- PERF: time | Skip < time | Join << time | None
-    , parseMoney :: Bool                                                -- PERF: insignificant added time 
-    , eliminateHyphens :: Bool                                          -- PERF: insignificant
+    , parseSuffixMoney :: Bool                                          -- PERF: insignificant added time
+    , parsePrefixMoney :: Bool                                          -- PERF: ~1/2 added time
+    , eliminateHyphens :: Bool                                          -- PERF: might even improve performance
     , parseDateTime :: Bool                                             -- WARN: not implemented yet
 
     -- filters
     , removeSpaces :: Bool
     , removeNumbers :: Bool
-    , removeWords :: HS.HashSet T.Text
     , removePunct :: Bool
+    , removeWords :: Bool
+    , stopWords :: HS.HashSet T.Text
 
     -- misc
     , fNumDels :: HS.HashSet T.Text
     , hyphens :: HS.HashSet T.Text
-    , specials :: [[Token] -> [Token]]
-    , postParser :: [Token] -> [Token]
+    , independentSpecialParsersLevels :: [[[Token] -> Maybe [Token]]]
     , newLines :: HS.HashSet T.Text
-    , currenciesParsers :: [[Token] -> Maybe [Token]]
+    , prefixCurrencyParser :: [[Token] -> Maybe [Token]]
+    , suffixCurrencyParser :: [[Token] -> Maybe [Token]]
     }
 
 defaultTokenizerConfig :: TokenizerConfig
@@ -203,23 +207,25 @@ defaultTokenizerConfig= TokenizerConfig
     , parseINum=True
     , parseFNum=True
     , fNumDels=HS.singleton "."
-    , removeSpaces=False
+    , removeSpaces=True
     , removeNumbers=False
-    , removeWords=HS.empty
+    , stopWords=HS.empty
     , removePunct=False
     , eliminateHyphens=True
     , hyphens=HS.singleton "-"
     , parseDateTime=False
-    , specials = []
-    , postParser=id
-    , newLines=HS.singleton "\n"
+    , independentSpecialParsersLevels = []
+    , newLines=HS.fromList ["\n", "\r\n"]
     , sameSpacesResolutionStrategy=Skip
-    , parseMoney=True
-    , currenciesParsers = usDollarParser : plainCurrenciesParsers 
+    , parseSuffixMoney=True
+    , parsePrefixMoney=False
+    , prefixCurrencyParser = currencyParser
+    , suffixCurrencyParser = currencyParser
     , lowerCase=True
+    , removeWords=False
     } 
   where 
-    puncts = ["...", ",", "!", "?", ".", ";", "(", ")", "[", "]", "{", "}", "--", "-"]
+    puncts = ["...", ",", "!", "?", ".", ";", "(", ")", "[", "]", "{", "}", "--", "-", "\\", "`", "<", ">"]
     spaces = ["\t", "\n", " "]
     plainCurrenciesParsers = map (\c -> fmap (uncurry (:)) . popTokenIfData word (=== c)) ["$", "€", "₽", "¥", "₣", "£", "USD", "EUR", "EURO", "RUB"]
     usDollarParser toks = 
@@ -234,6 +240,7 @@ defaultTokenizerConfig= TokenizerConfig
         >>|^ ((<|>) <$> popTokenIfData word (=== "dollar") <*> popTokenIfData word (=== "$"))
         >>= \(w1, (w2, tail_)) -> w1 <>? w2 
         <&> \w -> (w {val=Word "$"}) : tail_
+    currencyParser = usDollarParser : plainCurrenciesParsers 
 
 matchPreWords :: TokenizerConfig -> Int -> T.Text -> Maybe (Token, T.Text)
 matchPreWords cfg posShift text = liftFst tok . to2h <$> match (preWordMatchers cfg) text 
@@ -309,73 +316,96 @@ sameSpacesParser cfg toks =
     >>= (\s -> case sameSpacesResolutionStrategy cfg of
         Join -> s
         Skip -> s <&> \s_ -> s_ {val=Space s1Data}
-        None -> error "Should not get here, as None is expected to be filtered out on parser combinator level"
-    ) <&> (: tail_)
+        None -> error "Should not get here, as None is expected to be filtered out on parser combinator level" ) 
+    <&> (: tail_)
 
-foldParsers :: [[Token] -> Maybe [Token]] -> [Token] -> Maybe [Token]
-foldParsers = foldr1 (\acc next -> (<|>) <$> next <*> acc)
-
--- Independent single-pass parser combination for built-ins
-independentExtrasLevel0Parser :: TokenizerConfig -> [Token] -> [Token]
-independentExtrasLevel0Parser cfg toks =
-    nextTok (independentExtrasLevel0Parser cfg) $ toks <| (
-        guard (parseFNum cfg) *> fnumParser cfg toks
-        <|> guard (parseINum cfg) *> inumParser toks 
-        <|> guard (sameSpacesResolutionStrategy cfg /= None) *> sameSpacesParser cfg toks
-        <|> guard (eliminateHyphens cfg) *> nlHyphensParser cfg toks
-    )
-
-moneyParser :: TokenizerConfig -> [Token] -> Maybe [Token]
-moneyParser cfg toks =
+suffixMoneyParser :: TokenizerConfig -> [Token] -> Maybe [Token]
+suffixMoneyParser cfg toks = 
     popT num toks 
+        >>|^ skipManyT space
+        >>|^ foldParsers (suffixCurrencyParser cfg)
+        >>|^ uncons
+        >>= \((vTok, vData), (currencyTok, tail_)) -> word (val currencyTok)
+        <&> \currencyData -> Token 
+            { val=Money vData currencyData
+            , pos=pos vTok <> pos currencyTok
+            , props=props vTok `HS.union` props currencyTok
+            }
+        : tail_
+
+prefixMoneyParser :: TokenizerConfig -> [Token] -> Maybe [Token]
+prefixMoneyParser cfg toks =
+    (foldParsers (prefixCurrencyParser cfg) toks >>= uncons)
     >>|^ skipManyT space
-    >>|^ foldParsers (currenciesParsers cfg)
-    >>|^ uncons
-    >>= \((vTok, vData), (currencyTok, tail_)) -> word (val currencyTok)
+    >>|^ popT num 
+    >>= \(currencyTok, ((vTok, vData), tail_)) -> word (val currencyTok)
     <&> \currencyData -> Token 
         { val=Money vData currencyData
         , pos=pos vTok <> pos currencyTok
         , props=props vTok `HS.union` props currencyTok
         }
-        : tail_
+    : tail_
 
-independentExtrasLevel1Parser :: TokenizerConfig -> [Token] -> [Token]
-independentExtrasLevel1Parser cfg toks =
-    nextTok (independentExtrasLevel1Parser cfg) $ toks <|
-        guard (parseMoney cfg) *> moneyParser cfg toks
+-- Independent single-pass parser combinations for additional built-in features {
 
--- Dependent parser combination for built-ins
-recursiveExtrasParser :: TokenizerConfig -> [Token] -> [Token]
-recursiveExtrasParser _ = id -- TODO: implement when needed
+independentLevel0Parser :: TokenizerConfig -> [Token] -> [Token]
+independentLevel0Parser cfg toks =
+    nextTok (independentLevel0Parser cfg) $ toks <| (
+        guard (removePunct cfg) *> skipT punct toks
+        <|> guard (removeNumbers cfg) *> skipT num toks 
+        <|> guard (removeWords cfg) *> skipT word toks
+        <|> guard (parseFNum cfg) *> fnumParser cfg toks
+        <|> guard (parseINum cfg) *> inumParser toks 
+        <|> skipIfData word (`HS.member` stopWords cfg) toks
+        <|> guard (sameSpacesResolutionStrategy cfg /= None) *> sameSpacesParser cfg toks
+        <|> guard (removeSpaces cfg) *> skipT space toks
+        <|> guard (eliminateHyphens cfg) *> nlHyphensParser cfg toks
+    )
 
-filterWords :: TokenizerConfig -> [Token] -> [Token]
-filterWords cfg toks = nextTok (filterWords cfg) toks <| popIfData word (`HS.member` removeWords cfg) toks <&> snd
+independentLevel1Parser :: TokenizerConfig -> [Token] -> [Token]
+independentLevel1Parser cfg toks =
+    nextTok (independentLevel1Parser cfg) $ toks <| (
+        guard (parsePrefixMoney cfg) *> prefixMoneyParser cfg toks
+        <|> guard (parseSuffixMoney cfg) *> suffixMoneyParser cfg toks
+    )
 
-applyFilters :: TokenizerConfig -> [Token] -> [Token]
-applyFilters cfg = 
-    filterWords cfg
-    . (removePunct cfg -?> filter (not . isT punct . val))
-    . (removeNumbers cfg -?> filter (not . isT num . val))
-    . (removeSpaces cfg -?> filter (not . isT space . val))
+-- }
+
+-- NOTE: currently unused
+recursiveParser :: TokenizerConfig -> [Token] -> [Token]
+recursiveParser _ = id
+
+-- dynamic parser combinators {
+
+foldParsers :: [[Token] -> Maybe [Token]] -> [Token] -> Maybe [Token]
+foldParsers = foldr1 (\acc next -> (<|>) <$> next <*> acc)
+
+finalParserFromIndependentParsers :: ([Token] -> Maybe [Token]) -> [Token] -> [Token]
+finalParserFromIndependentParsers independentParser toks = 
+    nextTok (finalParserFromIndependentParsers independentParser) $ toks <| independentParser toks
+
+-- }
 
 tokenize :: TokenizerConfig -> T.Text -> [Token]
 tokenize cfg = 
-    foldr (.) (applyFilters cfg) (specials cfg) -- any specials (user-defined)
-    . recursiveExtrasParser cfg                 -- dependent extras (built-in)
-    . independentExtrasLevel1Parser cfg         -- independent extras (built-in), dependent on level 0
-    . independentExtrasLevel0Parser cfg         -- independent extras (built-in)
+    (not ( null $ independentSpecialParsersLevels cfg) -?> foldr1 (.) (map (finalParserFromIndependentParsers . foldParsers) $ independentSpecialParsersLevels cfg))
+    . recursiveParser cfg
+    . independentLevel1Parser cfg
+    . independentLevel0Parser cfg
     . wordParser
     . spacePunctLowLevelParser cfg 0
     . (lowerCase cfg -?> T.toLower)
 
+-- Representations { 
+
 fromTokens :: RawFromTokenVal a => [Token] -> [a]
 fromTokens = map rawVal
 
--- Reassembles close to original text
 foldFromTokens :: RawFromTokenVal a => Monoid a => [Token] -> a
 foldFromTokens = foldr ((<>) . rawVal) mempty
 
--- TODO: use text builder
--- TODO: avoid string conversions
+-- TODO: use text builder?
 prettyTextTokens :: [Token] -> T.Text
 prettyTextTokens = foldl (\acc tok -> acc <> T.cons '\n' (T.pack (show tok))) ""
+
+-- }

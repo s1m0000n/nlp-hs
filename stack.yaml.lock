@@ -5,6 +5,13 @@
 
 packages:
 - completed:
+    hackage: snowball-1.0.0.1@sha256:99b46eb27a338567666041e8b45510a2448d97a7ec3d85dd0982aba8b8d49b09,7306
+    pantry-tree:
+      sha256: 263fe8df2eb451fe9bd2fb9bec23ebff3082767e61f70585f44b6f8b9119e18e
+      size: 5992
+  original:
+    hackage: snowball-1.0.0.1@sha256:99b46eb27a338567666041e8b45510a2448d97a7ec3d85dd0982aba8b8d49b09,7306
+- completed:
     commit: 072256fb4884d40536c9a31e15fa60d3330d7c58
     git: https://github.com/yairchu/text-trie
     name: text-trie

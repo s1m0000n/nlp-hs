@@ -27,7 +27,10 @@ library
   exposed-modules:
       Bow
       Doc
-      Preproc
+      Language
+      Ngram
+      Pipeline
+      StopWords
       StrSim
       Tok
       TokFast
@@ -44,6 +47,7 @@ library
     , ordered-containers
     , partial-semigroup
     , regex
+    , snowball
     , text
     , text-builder
     , text-metrics
@@ -69,6 +73,7 @@ executable nlp-hs-exe
     , ordered-containers
     , partial-semigroup
     , regex
+    , snowball
     , text
     , text-builder
     , text-metrics
@@ -95,6 +100,7 @@ test-suite nlp-hs-test
     , ordered-containers
     , partial-semigroup
     , regex
+    , snowball
     , text
     , text-builder
     , text-metrics

@@ -14,7 +14,7 @@ High-level code to check out first is in `src/Pipeline.hs`
 https://github.com/sigrlami/lanhunch is integrated to pipeline & used when `languages = Auto`. 
 Whole language group based on writing is added when predicted. 
 Considered unsafe & experimental, so disabled by default.
-This library is to be replaced, because it primarily uses `String` type
+This library is to be replaced, because of very poor performance
 
 ### Tokenizing
 

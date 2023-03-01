@@ -1,10 +1,20 @@
 # Hermes - fast & featureful Haskell NLP library
 
-Natural Language Processing tools for Haskell with emphasis on performance
-
 ⚠️ **This library is very experimental & being actively developed with breaking changes**
 
+Natural Language Processing tools for Haskell with emphasis on performance
+
+Some examples are provided in `app/Main.hs` (to be moved).
+High-level code to check out first is in `src/Pipeline.hs`
+
 ## Features
+
+### Language detection
+
+https://github.com/sigrlami/lanhunch is integrated to pipeline & used when `languages = Auto`. 
+Whole language group based on writing is added when predicted. 
+Considered unsafe & experimental, so disabled by default.
+This library is to be replaced, because it primarily uses `String` type
 
 ### Tokenizing
 
@@ -29,7 +39,7 @@ Some ablation experiments have shown that the most important is agressive inlini
 
 ### Stemming
 
-Wrappers around [NLP.Snowball](https://hackage.haskell.org/package/snowball-1.0.0.1/docs/NLP-Snowball.html)
+[NLP.Snowball](https://hackage.haskell.org/package/snowball-1.0.0.1/docs/NLP-Snowball.html) is integrated to pipeline
 
 ### Bag of Words (& derived models)
 

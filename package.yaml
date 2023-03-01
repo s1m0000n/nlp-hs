@@ -35,6 +35,7 @@ dependencies:
 - cond
 - hashable
 - snowball
+- lanhunch
 
 ghc-options:
 - -Wall

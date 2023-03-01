@@ -44,6 +44,7 @@ library
       base >=4.7 && <5
     , cond
     , hashable
+    , lanhunch
     , ordered-containers
     , partial-semigroup
     , regex
@@ -69,6 +70,7 @@ executable nlp-hs-exe
       base >=4.7 && <5
     , cond
     , hashable
+    , lanhunch
     , nlp-hs
     , ordered-containers
     , partial-semigroup
@@ -96,6 +98,7 @@ test-suite nlp-hs-test
       base >=4.7 && <5
     , cond
     , hashable
+    , lanhunch
     , nlp-hs
     , ordered-containers
     , partial-semigroup

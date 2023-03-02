@@ -66,7 +66,9 @@ Some ablation experiments have shown that the most important is agressive inlini
 
 ## Plans
 
-- Add language detection
+- Refactor some `Tok.hs` (`show`, `showText` problems, use text builder)
+- Remove simplified config & simplify `Pipeline.hs`
+- Improve language detection
 - Provide a single coherent interface for common ML approaches (in context of NLP)
 - Provide examples (separate `<project root>/examples`)
 - Fix export lists & add basic documentations on exported entities

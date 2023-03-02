@@ -1,3 +1,5 @@
+-- TODO: refactor show & showText
+
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveGeneric #-}
@@ -138,6 +140,28 @@ instance Show Token where
     show (Token value pos props)  = show pos ++ " " ++ show value ++ " (props: " ++ propsRepr ++ ")"
       where
         propsRepr = foldl (\acc n -> acc ++ show n ++ ", ") "" props
+
+class ShowText a where
+    showText :: a -> T.Text
+
+-- instance ShowText Int where
+--     showText i = T.pack $ show i
+--
+-- instance ShowText Pos where
+--     -- TODO: use text builder
+--     showText (Pos s e) = "[" <> showText s <> ":" <> showText e <> "]"
+--
+-- instance ShowText Value where
+--     showText (Word t) = t
+--     showText (Punct t) = t
+--     showText (Space t) = t
+--     showText ()
+
+-- instance ShowText Token where
+--     showText (Token value pos props)  = show pos ++ " " ++ show value ++ " (props: " ++ propsRepr ++ ")"
+--       where
+--         propsRepr = foldl (\acc n -> acc ++ show n ++ ", ") "" props
+    
 
 instance PartialSemigroup Token where
     (<>?) (Token value1 pos1 props1) (Token value2 pos2 props2) = value1 <>? value2 <&> \v -> Token v pos props
@@ -351,12 +375,7 @@ prefixMoneyParser cfg toks =
 independentLevel0Parser :: TokenizerConfig -> [Token] -> [Token]
 independentLevel0Parser cfg toks =
     nextTok (independentLevel0Parser cfg) $ toks <| (
-        guard (removePunct cfg) *> skipT punct toks
-        <|> guard (removeNumbers cfg) *> skipT num toks 
-        <|> guard (removeWords cfg) *> skipT word toks
-        <|> guard (parseFNum cfg) *> fnumParser cfg toks
-        <|> guard (parseINum cfg) *> inumParser toks 
-        <|> skipIfData word (`HS.member` stopWords cfg) toks
+        skipIfData word (`HS.member` stopWords cfg) toks
         <|> guard (sameSpacesResolutionStrategy cfg /= None) *> sameSpacesParser cfg toks
         <|> guard (removeSpaces cfg) *> skipT space toks
         <|> guard (eliminateHyphens cfg) *> nlHyphensParser cfg toks
@@ -365,6 +384,16 @@ independentLevel0Parser cfg toks =
 independentLevel1Parser :: TokenizerConfig -> [Token] -> [Token]
 independentLevel1Parser cfg toks =
     nextTok (independentLevel1Parser cfg) $ toks <| (
+        guard (removePunct cfg) *> skipT punct toks
+        <|> guard (removeNumbers cfg) *> skipT num toks 
+        <|> guard (removeWords cfg) *> skipT word toks
+        <|> guard (parseFNum cfg) *> fnumParser cfg toks
+        <|> guard (parseINum cfg) *> inumParser toks 
+    )
+
+independentLevel2Parser :: TokenizerConfig -> [Token] -> [Token]
+independentLevel2Parser cfg toks =
+    nextTok (independentLevel2Parser cfg) $ toks <| (
         guard (parsePrefixMoney cfg) *> prefixMoneyParser cfg toks
         <|> guard (parseSuffixMoney cfg) *> suffixMoneyParser cfg toks
     )
@@ -390,6 +419,7 @@ tokenize :: TokenizerConfig -> T.Text -> [Token]
 tokenize cfg = 
     (not ( null $ independentSpecialParsersLevels cfg) -?> foldr1 (.) (map (finalParserFromIndependentParsers . foldParsers) $ independentSpecialParsersLevels cfg))
     . recursiveParser cfg
+    . independentLevel2Parser cfg
     . independentLevel1Parser cfg
     . independentLevel0Parser cfg
     . wordParser
@@ -406,6 +436,40 @@ foldFromTokens = foldr ((<>) . rawVal) mempty
 
 -- TODO: use text builder?
 prettyTextTokens :: [Token] -> T.Text
-prettyTextTokens = foldl (\acc tok -> acc <> T.cons '\n' (T.pack (show tok))) ""
+prettyTextTokens = foldl (\acc tok -> acc <> T.cons '\n' ((T.pack $ show $ pos tok) <> " " <> (valueRepr $ val tok) <> " (props: " <> (propsRepr $ props tok) <> ")")) ""
+  where
+    propsRepr = foldl (\acc n -> acc <> (T.pack (show n)) <> ", ") ""
+    valueRepr (Word t) = "Word " <> t
+    valueRepr (Punct t) = "Punct " <> t
+    valueRepr (Space t) = "Space " <> t
+    valueRepr (INum n) = "INum " <> (T.pack $ show n)
+    valueRepr (FNum n) = "FNum " <> (T.pack $ show n)
+    valueRepr (Money i c) = "Money " <> (T.pack $ show i) <> " " <> (T.pack $ show c)
+    valueRepr (DateTime dt) = "DateTime " <> (T.pack $ show dt)
+    valueRepr (Special k v) = "Special " <> (T.pack $ raw $ Special k v)
+    
+-- instance RawFromTokenVal T.Text where
+--     raw (Word t) = t
+--     raw (Punct t) = t
+--     raw (Space t) = t
+--     raw (INum n) = T.pack $ show n
+--     raw (FNum n) = T.pack $ show n
+--     raw (Money i c) = T.pack (show i) <> T.pack (show c)
+--     raw (DateTime dt) = T.pack $ show dt
+--     raw (Special k v) = T.pack $ raw $ Special k v
+--
+-- instance RawFromTokenVal String where
+--     raw (Word t) = T.unpack t
+--     raw (Punct t) = T.unpack t
+--     raw (Space t) = T.unpack t
+--     raw (INum n) = show n
+--     raw (FNum n) = show n
+--     raw (Money i c) = show i ++ show c
+--     raw (DateTime dt) = show dt
+--     raw (Special k v) = k ++ " -> " ++ show v
 
+-- instance Show Token where
+--     show (Token value pos props)  = show pos ++ " " ++ show value ++ " (props: " ++ propsRepr ++ ")"
+--       where
+--         propsRepr = foldl (\acc n -> acc ++ show n ++ ", ") "" props
 -- }

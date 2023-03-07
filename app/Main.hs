@@ -5,7 +5,7 @@
 module Main (main) where
 
 import Tok
-import Bow ( buildVocab, bowMVecIO, tfIdfs )
+import Bow ( buildVocab, tfIdfs, bowIOVec )
 import qualified Data.Text.IO as Tio
 import qualified Data.Text as T
 import System.Environment (getArgs)
@@ -39,16 +39,8 @@ main = do
             $ filter (isT word . val) 
             $ tokenLevelPipeline defaultTokenLevelPipelineConfig text 
     let vocab = buildVocab $ foldr1 (++) docs
-    bows <- mapM (bowMVecIO vocab) docs
+    bows <- mapM (bowIOVec vocab) docs
     let scores = tfIdfs bows
     forM_ (zip [0..] args) \(i, fileName) -> do
         let topWords = mapM (elemAt vocab) $ V.take 10 $ V.reverse $ V.convert $ argSort $ scores !! i
         putStrLn $ "10 most important words in \"" ++ fileName ++ "\" => " ++ show topWords
-    --
-    -- 3. Replacement for `docs <- ...` in (2.)
-    -- PERF: This eats up too much memory. Parallelized?
-    -- texts <- mapM Tio.readFile args
-    -- let docs = for texts $ filterSW defaultStopwords . map T.toLower . fromTokens . filter (isT word . val) . tokenize defaultTokenizerConfig
-    
-    -- 4. Dynamic special properties
-     -- $ filter (predT special (\(k, dv) -> k == "a" && isJustTrue ((== 1) <$> (fromDynamic dv :: Maybe Integer))) . val) 

@@ -24,7 +24,6 @@ import Data.List (uncons)
 import Data.Dynamic (Dynamic)
 import TextShow.TH
 import TextShow (TextShow(showb, showbList, showt), fromString)
-import Data.Bifoldable (bifoldl1)
 
 data Pos = Pos 
     { start :: Int
@@ -381,10 +380,6 @@ independentLevel2Parser cfg toks =
 
 -- }
 
--- NOTE: currently unused
-recursiveParser :: TokenizerConfig -> [Token] -> [Token]
-recursiveParser _ = id
-
 -- dynamic parser combinators {
 
 foldParsers :: [[Token] -> Maybe [Token]] -> [Token] -> Maybe [Token]
@@ -399,7 +394,6 @@ finalParserFromIndependentParsers independentParser toks =
 tokenize :: TokenizerConfig -> T.Text -> [Token]
 tokenize cfg = 
     (not ( null $ independentSpecialParsersLevels cfg) -?> foldr1 (.) (map (finalParserFromIndependentParsers . foldParsers) $ independentSpecialParsersLevels cfg))
-    . recursiveParser cfg
     . independentLevel2Parser cfg
     . independentLevel1Parser cfg
     . independentLevel0Parser cfg

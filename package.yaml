@@ -37,6 +37,7 @@ dependencies:
 - snowball
 - lanhunch
 - text-show
+- composition-extra
 
 ghc-options:
 - -Wall

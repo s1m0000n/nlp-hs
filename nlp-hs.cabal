@@ -42,6 +42,7 @@ library
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O2 -XFlexibleInstances -fexpose-all-unfoldings -fspecialise-aggressively -fasm-shortcutting -feager-blackholing -fexcess-precision -ffun-to-thunk -flate-dmd-anal -fspec-constr-keen -flate-specialise -fstatic-argument-transformation
   build-depends:
       base >=4.7 && <5
+    , composition-extra
     , cond
     , hashable
     , lanhunch
@@ -69,6 +70,7 @@ executable nlp-hs-exe
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O2 -XFlexibleInstances -fexpose-all-unfoldings -fspecialise-aggressively -fasm-shortcutting -feager-blackholing -fexcess-precision -ffun-to-thunk -flate-dmd-anal -fspec-constr-keen -flate-specialise -fstatic-argument-transformation -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
+    , composition-extra
     , cond
     , hashable
     , lanhunch
@@ -98,6 +100,7 @@ test-suite nlp-hs-test
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O2 -XFlexibleInstances -fexpose-all-unfoldings -fspecialise-aggressively -fasm-shortcutting -feager-blackholing -fexcess-precision -ffun-to-thunk -flate-dmd-anal -fspec-constr-keen -flate-specialise -fstatic-argument-transformation -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
+    , composition-extra
     , cond
     , hashable
     , lanhunch

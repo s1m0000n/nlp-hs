@@ -1,4 +1,4 @@
-module Bow (Vocab, buildVocab, bowMVec, bowMVecIO, termFreqs, inverseDocFreqs, tfIdfs) where
+module Bow (Vocab, buildVocab, bowMVec, bowIOVec, termFreqs, inverseDocFreqs, tfIdfs, bowVec) where
 
 import qualified Data.Text as T
 import qualified Data.Set.Ordered as OS
@@ -9,6 +9,8 @@ import Control.Monad (forM_)
 import Control.Monad.ST (ST, stToIO)
 import qualified Data.Vector.Unboxed as V
 import GHC.Float (logDouble)
+import Control.Conditional ((<|))
+import Data.Function.Flip (flip3)
 
 type Vocab = OS.OSet T.Text
 class BuildVocab a where
@@ -26,17 +28,14 @@ bowMVec vocab tokens = do
             VM.modify vec (+ 1)
     return vec
 
-bowMVecIO :: Vocab -> Doc -> IO (V.Vector Int)
-bowMVecIO vocab tokens = stMVtoIO $ bowMVec vocab tokens
-    where stMVtoIO v = stToIO $ v >>= V.freeze
+bowIOVec :: Vocab -> Doc -> IO (V.Vector Int)
+bowIOVec vocab tokens = stMVtoIO $ bowMVec vocab tokens
+    where stMVtoIO v = stToIO $ v >>= V.unsafeFreeze
 
--- TODO: implement efficient immutable solution as well
--- bowVec :: Vocab -> Doc -> V.Vector Int
--- bowVec vocab tokens = V.replicate (length vocab) 0 where 
---     indices = mapMaybe (`OS.findIndex` vocab) tokens
--- bowVec vocab [] = V.replicate (length vocab) 0 
--- bowVec vocab (t:ts) = OS.findIndex t vocab <&> \i -> 
--- bowVec vocab (t:ts) = 
+-- PERF: many times slower that mutable version
+bowVec :: Vocab -> Doc -> V.Vector Int
+bowVec vocab [] = V.replicate (OS.size vocab) 0
+bowVec vocab (x:xs) = (id <| ((\i -> V.modify (flip3 VM.modify i (+1))) <$> OS.findIndex x vocab)) $ bowVec vocab xs
 
 termFreqs :: V.Vector Int -> V.Vector Double
 termFreqs b = V.map (\c -> fromIntegral c / s) b

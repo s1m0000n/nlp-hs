@@ -54,7 +54,6 @@ Some ablation experiments have shown that the most important is agressive inlini
 
 ### Machine learning
 
-- Naive Bayes classifier with [Hext](https://hackage.haskell.org/package/hext)
 - Classic algorithms with [HLearn](https://github.com/mikeizbicki/HLearn) 
 - Deep Learning with [Grenade](https://hackage.haskell.org/package/grenade). It's planned to develop the lib in this way for now
 

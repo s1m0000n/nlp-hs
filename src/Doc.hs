@@ -1,4 +1,4 @@
-module Doc where
+module Doc (Doc) where
 
 import qualified Data.Text as T
 

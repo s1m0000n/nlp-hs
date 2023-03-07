@@ -52,6 +52,7 @@ library
     , text
     , text-builder
     , text-metrics
+    , text-show
     , text-trie
     , time
     , unordered-containers
@@ -79,6 +80,7 @@ executable nlp-hs-exe
     , text
     , text-builder
     , text-metrics
+    , text-show
     , text-trie
     , time
     , unordered-containers
@@ -107,6 +109,7 @@ test-suite nlp-hs-test
     , text
     , text-builder
     , text-metrics
+    , text-show
     , text-trie
     , time
     , unordered-containers

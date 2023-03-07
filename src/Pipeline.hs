@@ -6,13 +6,13 @@ Stability   : experimental
 
 {-# LANGUAGE LambdaCase #-}
 
-module Pipeline (SimpleTokenizerConfig(..), TokenLevelPipelineConfig(..), tokenizer, stemmer, tokenLevelPipeline, defaultTokenLevelPipelineConfig, defaultTokenLevelPipeline, LanguagesConfig(..)) where
+module Pipeline (SimpleTokenizerConfig(..), TokenLevelPipelineConfig(..), tokenizer, stemmer, tokenLevelPipeline, defaultTokenLevelPipelineConfig, LanguagesConfig(..)) where
 
 import qualified Tok
 import qualified Data.Text as T
 import Control.Conditional ((<|))
 import Language (Language(..), languageToSnowballAlgorithm, detectLanguageGroup)
-import NLP.Snowball (stem, Algorithm)
+import NLP.Snowball (stem)
 import qualified Data.List.NonEmpty as NEL
 import Data.Functor ((<&>))
 import Tok (Token (val), Value(..), MaybeValueWithType(..), defaultTokenizerConfig, tokenize, TokenizerConfig)
@@ -34,7 +34,7 @@ data TokenLevelPipelineConfig = TokenLevelPipelineConfig
 
 defaultTokenLevelPipelineConfig :: TokenLevelPipelineConfig
 defaultTokenLevelPipelineConfig = TokenLevelPipelineConfig 
-    { applyStemming=True
+    { applyStemming=False
     , languages=List [English]
     , tokenizerConfig=Just $ Right defaultTokenizerConfig
     }
@@ -97,6 +97,3 @@ tokenLevelPipeline config text = stemmer config' $ tokenizer config' text
                 Right regularConfig -> regularConfig 
             )
         }
-
-defaultTokenLevelPipeline :: T.Text -> [Token]
-defaultTokenLevelPipeline = tokenLevelPipeline defaultTokenLevelPipelineConfig

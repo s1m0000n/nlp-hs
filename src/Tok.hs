@@ -1,14 +1,13 @@
--- TODO: refactor show & showText
-
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Tok where
 
-import Data.Maybe (isJust)
+import Data.Maybe (isJust, fromJust)
 import Control.Applicative ((<|>))
 import Data.PartialSemigroup
 import Data.Functor ((<&>))
@@ -23,11 +22,18 @@ import Data.Hashable (Hashable)
 import GHC.Generics (Generic)
 import Data.List (uncons)
 import Data.Dynamic (Dynamic)
+import TextShow.TH
+import TextShow (TextShow(showb, showbList, showt), fromString)
+import Data.Bifoldable (bifoldl1)
 
 data Pos = Pos 
     { start :: Int
     , end :: Int
     }
+$(deriveTextShow ''Pos)
+
+instance TextShow UTCTime where
+    showb = fromString . show
 
 data Value 
     = Word T.Text 
@@ -38,9 +44,9 @@ data Value
     | Money Double T.Text
     | DateTime UTCTime -- not implemented yet
     | Special String Dynamic -- key, value; for specific custom cases 
+    -- | Filepath String
     deriving Show
--- TODO:
--- (word, "/", ...) => FilePath
+$(deriveTextShow ''Value)
 
 data Prop 
     = SentStart | SentEnd -- TODO: implement detection
@@ -50,12 +56,31 @@ data Prop
     | Tag String
     deriving stock (Show, Eq, Generic)
     deriving anyclass (Hashable)
+$(deriveTextShow ''Prop)
+
+instance TextShow a => TextShow (HS.HashSet a) where
+    showb = showbList . HS.toList
 
 data Token = Token 
     { val :: Value
     , pos :: Pos
     , props :: HS.HashSet Prop
     }
+$(deriveTextShow ''Token)
+
+class FromToken a where
+    fromToken :: Token -> a
+
+instance FromToken T.Text where
+    fromToken token = fromJust $
+        showt <$> word (val token)
+        <|> showt <$> punct (val token)
+        <|> showt <$> space (val token)
+        <|> showt <$> inum (val token)
+        <|> showt <$> fnum (val token)
+        <|> (\(a, b) -> a <> " " <> b) . liftFst showt <$> money (val token) -- PERF: use text builder instead
+        <|> showt <$> dateTime (val token)
+        <|> showt <$> special (val token)
 
 class MaybeValueWithType a where
     word :: a -> Maybe T.Text
@@ -63,6 +88,7 @@ class MaybeValueWithType a where
     space :: a -> Maybe T.Text
     inum :: a -> Maybe Integer
     fnum :: a -> Maybe Double
+    money :: a -> Maybe (Double, T.Text)
     dateTime :: a -> Maybe UTCTime
     special :: a -> Maybe (String, Dynamic)
     num :: a -> Maybe Double
@@ -103,11 +129,6 @@ skipMany1IfData type_ predicate toks = skipIfData type_ predicate toks >>= \t ->
 skipManyIfData :: (Value -> Maybe b) -> (b -> Bool) -> [Token] -> Maybe [Token]
 skipManyIfData type_ predicate toks = skipMany1IfData type_ predicate toks <|> Just toks
 
-class RawFromTokenVal a where
-    raw :: Value -> a
-    rawVal :: Token -> a
-    rawVal tok = raw $ val tok
-
 instance Show Pos where
     show (Pos s e) = "[" ++ show s ++ ":" ++ show e ++ "]"
 
@@ -131,6 +152,8 @@ instance MaybeValueWithType Value where
     inum _ = Nothing
     fnum (FNum f) = Just f
     fnum _ = Nothing
+    money (Money d c) = Just (d, c)
+    money _ = Nothing
     dateTime (DateTime dt) = Just dt
     dateTime _ = Nothing
     special (Special k v) = Just (k, v)
@@ -141,54 +164,12 @@ instance Show Token where
       where
         propsRepr = foldl (\acc n -> acc ++ show n ++ ", ") "" props
 
-class ShowText a where
-    showText :: a -> T.Text
-
--- instance ShowText Int where
---     showText i = T.pack $ show i
---
--- instance ShowText Pos where
---     -- TODO: use text builder
---     showText (Pos s e) = "[" <> showText s <> ":" <> showText e <> "]"
---
--- instance ShowText Value where
---     showText (Word t) = t
---     showText (Punct t) = t
---     showText (Space t) = t
---     showText ()
-
--- instance ShowText Token where
---     showText (Token value pos props)  = show pos ++ " " ++ show value ++ " (props: " ++ propsRepr ++ ")"
---       where
---         propsRepr = foldl (\acc n -> acc ++ show n ++ ", ") "" props
-    
 
 instance PartialSemigroup Token where
     (<>?) (Token value1 pos1 props1) (Token value2 pos2 props2) = value1 <>? value2 <&> \v -> Token v pos props
       where
         pos = pos1 <> pos2
         props = HS.insert Joined $ HS.union props1 props2
-
-instance RawFromTokenVal T.Text where
-    raw (Word t) = t
-    raw (Punct t) = t
-    raw (Space t) = t
-    raw (INum n) = T.pack $ show n
-    raw (FNum n) = T.pack $ show n
-    raw (Money i c) = T.pack (show i) <> T.pack (show c)
-    raw (DateTime dt) = T.pack $ show dt
-    raw (Special k v) = T.pack $ raw $ Special k v
-
-instance RawFromTokenVal String where
-    raw (Word t) = T.unpack t
-    raw (Punct t) = T.unpack t
-    raw (Space t) = T.unpack t
-    raw (INum n) = show n
-    raw (FNum n) = show n
-    raw (Money i c) = show i ++ show c
-    raw (DateTime dt) = show dt
-    raw (Special k v) = k ++ " -> " ++ show v
-
 
 data SameSpacesResolutionStrategy = None 
                                   | Skip 
@@ -425,51 +406,3 @@ tokenize cfg =
     . wordParser
     . spacePunctLowLevelParser cfg 0
     . (lowerCase cfg -?> T.toLower)
-
--- Representations { 
-
-fromTokens :: RawFromTokenVal a => [Token] -> [a]
-fromTokens = map rawVal
-
-foldFromTokens :: RawFromTokenVal a => Monoid a => [Token] -> a
-foldFromTokens = foldr ((<>) . rawVal) mempty
-
--- TODO: use text builder?
-prettyTextTokens :: [Token] -> T.Text
-prettyTextTokens = foldl (\acc tok -> acc <> T.cons '\n' ((T.pack $ show $ pos tok) <> " " <> (valueRepr $ val tok) <> " (props: " <> (propsRepr $ props tok) <> ")")) ""
-  where
-    propsRepr = foldl (\acc n -> acc <> (T.pack (show n)) <> ", ") ""
-    valueRepr (Word t) = "Word " <> t
-    valueRepr (Punct t) = "Punct " <> t
-    valueRepr (Space t) = "Space " <> t
-    valueRepr (INum n) = "INum " <> (T.pack $ show n)
-    valueRepr (FNum n) = "FNum " <> (T.pack $ show n)
-    valueRepr (Money i c) = "Money " <> (T.pack $ show i) <> " " <> (T.pack $ show c)
-    valueRepr (DateTime dt) = "DateTime " <> (T.pack $ show dt)
-    valueRepr (Special k v) = "Special " <> (T.pack $ raw $ Special k v)
-    
--- instance RawFromTokenVal T.Text where
---     raw (Word t) = t
---     raw (Punct t) = t
---     raw (Space t) = t
---     raw (INum n) = T.pack $ show n
---     raw (FNum n) = T.pack $ show n
---     raw (Money i c) = T.pack (show i) <> T.pack (show c)
---     raw (DateTime dt) = T.pack $ show dt
---     raw (Special k v) = T.pack $ raw $ Special k v
---
--- instance RawFromTokenVal String where
---     raw (Word t) = T.unpack t
---     raw (Punct t) = T.unpack t
---     raw (Space t) = T.unpack t
---     raw (INum n) = show n
---     raw (FNum n) = show n
---     raw (Money i c) = show i ++ show c
---     raw (DateTime dt) = show dt
---     raw (Special k v) = k ++ " -> " ++ show v
-
--- instance Show Token where
---     show (Token value pos props)  = show pos ++ " " ++ show value ++ " (props: " ++ propsRepr ++ ")"
---       where
---         propsRepr = foldl (\acc n -> acc ++ show n ++ ", ") "" props
--- }

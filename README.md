@@ -66,7 +66,6 @@ Some ablation experiments have shown that the most important is agressive inlini
 
 ## Plans
 
-- Remove simplified config & simplify `Pipeline.hs`
 - Improve language detection
 - Provide a single coherent interface for common ML approaches (in context of NLP)
 - Provide examples (separate `<project root>/examples`)

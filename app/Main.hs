@@ -14,27 +14,17 @@ import Utils (argSort)
 import Data.Set.Ordered (elemAt)
 import Control.Monad (forM, forM_)
 import Pipeline (tokenLevelPipeline, defaultTokenLevelPipelineConfig)
-
--- for dynamic
--- import Utils (isJustTrue)
--- import Data.Dynamic (fromDynamic)
--- import Data.Functor ((<&>))
-
+-- import Ngram (multiNgrams)
 
 main :: IO ()
 main = do
     -- NOTE: right now (before refactoring) this is used as a manual test sandbox (with reading file list from args)
     args <- getArgs
-
-    -- 1. Just pretty print tokens of single file
-    -- Tio.readFile (head args) >>= print . length . defaultTokenLevelPipeline 
-
-
-    -- 2. ~Topic modelling with TF-IDF on multiple files
+    -- ~Topic modelling with TF-IDF on multiple files
     docs <- forM args \fileName -> do
         text <- Tio.readFile fileName
         return 
-            -- $ ngrams [1, 2, 3]
+            -- $ multiNgrams [1, 2]
             $ map (T.toLower . fromToken) 
             $ filter (isT word . val) 
             $ tokenLevelPipeline defaultTokenLevelPipelineConfig text 

@@ -25,7 +25,7 @@ bowMVec vocab tokens = do
     vec <- VM.new $ length vocab
     forM_ tokens $ \token ->
         forM_ (OS.findIndex token vocab) $
-            VM.modify vec (+ 1)
+            VM.unsafeModify vec (+ 1)
     return vec
 
 bowIOVec :: Vocab -> Doc -> IO (V.Vector Int)
@@ -37,6 +37,7 @@ bowVec :: Vocab -> Doc -> V.Vector Int
 bowVec vocab [] = V.replicate (OS.size vocab) 0
 bowVec vocab (x:xs) = (id <| ((\i -> V.modify (flip3 VM.modify i (+1))) <$> OS.findIndex x vocab)) $ bowVec vocab xs
 
+-- TODO: extract to separate module
 termFreqs :: V.Vector Int -> V.Vector Double
 termFreqs b = V.map (\c -> fromIntegral c / s) b
     where s = fromIntegral $ V.sum b
@@ -48,12 +49,4 @@ inverseDocFreqs bs = V.map (\c -> logDouble $ numDoc / fromIntegral c) $ foldl1 
 tfIdfs :: [V.Vector Int] -> [V.Vector Double]
 tfIdfs bs = map (V.zipWith (*) idfs . termFreqs) bs
     where idfs = inverseDocFreqs bs
-
--- TODO: implement Naive Bayes Classifier
--- data NBModelType = Bernoulli | Multinomial
--- data NBModel = NBModel {
---     log_p_cls :: Vector Double,
---     §
--- }
--- trainNB :: NBModelType -> [(V.Vector Int, Int)] -> NBModel 
 

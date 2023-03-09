@@ -27,6 +27,7 @@ library
   exposed-modules:
       Bow
       Doc
+      LangDetect
       Language
       Ngram
       Pipeline

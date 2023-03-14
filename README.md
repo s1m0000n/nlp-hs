@@ -54,7 +54,8 @@ Some ablation experiments have shown that the most important is agressive inlini
 
 ### Machine learning
 
-- Classic algorithms with [HLearn](https://github.com/mikeizbicki/HLearn) 
+- [Mllib](https://github.com/vsha96/mllib) is a great project I'm also working on. Gaining popularity & recently active development kickstarted again
+- Maybe also [HLearn](https://github.com/mikeizbicki/HLearn) 
 - Deep Learning with [Grenade](https://hackage.haskell.org/package/grenade). It's planned to develop the lib in this way for now
 
 ## Observations

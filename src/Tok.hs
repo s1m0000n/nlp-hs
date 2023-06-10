@@ -183,10 +183,10 @@ data TokenizerConfig = TokenizerConfig
     -- extras parsing
     , parseINum :: Bool                                                 -- PERF: ~1/5 added time
     , parseFNum :: Bool                                                 -- PERF: would depend on type of text, for most texts - insignificant
-    , sameSpacesResolutionStrategy :: SameSpacesResolutionStrategy      -- PERF: time | Skip < time | Join << time | None
+    , sameSpacesResolutionStrategy :: SameSpacesResolutionStrategy      -- PERF: (time Skip) < (time Join) << (time None)
     , parseSuffixMoney :: Bool                                          -- PERF: insignificant added time
     , parsePrefixMoney :: Bool                                          -- PERF: ~1/2 added time
-    , eliminateHyphens :: Bool                                          -- PERF: might even improve performance
+    , eliminateHyphens :: Bool                                          -- PERF: slight performance improvement in some cases
     , parseDateTime :: Bool                                             -- WARN: not implemented yet
 
     -- filters
@@ -229,7 +229,7 @@ defaultTokenizerConfig= TokenizerConfig
     , removeWords=False
     } 
   where 
-    puncts = ["...", ",", "!", "?", ".", ";", "(", ")", "[", "]", "{", "}", "--", "-", "\\", "`", "<", ">"]
+    puncts = ["...", ",", "!", "?", ".", ";", "(", ")", "[", "]", "{", "}", "--", "-", "\\", "`", "<", ">", "@"]
     spaces = ["\t", "\n", " "]
     plainCurrenciesParsers = map (\c -> fmap (uncurry (:)) . popTokenIfData word (=== c)) ["$", "€", "₽", "¥", "₣", "£", "USD", "EUR", "EURO", "RUB"]
     usDollarParser toks = 

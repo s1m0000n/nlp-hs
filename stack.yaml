@@ -45,8 +45,6 @@ extra-deps:
   - snowball-1.0.0.1@sha256:99b46eb27a338567666041e8b45510a2448d97a7ec3d85dd0982aba8b8d49b09,7306
   - git: https://github.com/yairchu/text-trie
     commit: 072256fb4884d40536c9a31e15fa60d3330d7c58
-  - git: https://github.com/sigrlami/lanhunch
-    commit: 330e46c2beb8410a78be3eb1cc55996251358e8b
 
 # Override default flag values for local packages and extra-deps
 # flags: {}

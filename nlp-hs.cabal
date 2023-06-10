@@ -6,7 +6,7 @@ cabal-version: 1.12
 
 name:           nlp-hs
 version:        0.1.0.0
-description:    Please see the README on GitHub at <https://github.com/githubuser/nlp-hs#readme>
+description:    Please see the README on GitHub at <https://github.com/s1m0000n/nlp-hs#readme>
 homepage:       https://github.com/s1m0000n/nlp-hs#readme
 bug-reports:    https://github.com/s1m0000n/nlp-hs/issues
 author:         Semyon Pogoreltsev
@@ -46,7 +46,6 @@ library
     , composition-extra
     , cond
     , hashable
-    , lanhunch
     , ordered-containers
     , partial-semigroup
     , regex
@@ -74,7 +73,6 @@ executable nlp-hs-exe
     , composition-extra
     , cond
     , hashable
-    , lanhunch
     , nlp-hs
     , ordered-containers
     , partial-semigroup
@@ -104,7 +102,6 @@ test-suite nlp-hs-test
     , composition-extra
     , cond
     , hashable
-    , lanhunch
     , nlp-hs
     , ordered-containers
     , partial-semigroup

@@ -22,17 +22,6 @@ packages:
   original:
     commit: 072256fb4884d40536c9a31e15fa60d3330d7c58
     git: https://github.com/yairchu/text-trie
-- completed:
-    commit: 330e46c2beb8410a78be3eb1cc55996251358e8b
-    git: https://github.com/sigrlami/lanhunch
-    name: lanhunch
-    pantry-tree:
-      sha256: 35bcf15631beccaad6bab85c8af542795c90ab139a202be3300f7f7f2930b7b9
-      size: 543
-    version: 0.1.0.0
-  original:
-    commit: 330e46c2beb8410a78be3eb1cc55996251358e8b
-    git: https://github.com/sigrlami/lanhunch
 snapshots:
 - completed:
     sha256: 17870c63f8041ac17a38096124abeb953cb14d84bfc96deb88f9b24daa97b347

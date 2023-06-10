@@ -1,7 +1,7 @@
 name:                nlp-hs
 version:             0.1.0.0
 github:              "s1m0000n/nlp-hs"
-license:             BSD3
+license:             MIT
 author:              "Semyon Pogoreltsev"
 maintainer:          "pogorelcevsa@gmail.com"
 copyright:           "2023 Semyon Pogoreltsev"
@@ -17,7 +17,7 @@ extra-source-files:
 # To avoid duplicated efforts in documentation and dealing with the
 # complications of embedding Haddock markup inside cabal files, it is
 # common to point users to the README.md file.
-description:         Please see the README on GitHub at <https://github.com/githubuser/nlp-hs#readme>
+description:         Please see the README on GitHub at <https://github.com/s1m0000n/nlp-hs#readme>
 
 dependencies:
 - base >= 4.7 && < 5
@@ -35,7 +35,6 @@ dependencies:
 - cond
 - hashable
 - snowball
-- lanhunch
 - text-show
 - composition-extra
 

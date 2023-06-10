@@ -32,7 +32,7 @@ bowIOVec :: Vocab -> Doc -> IO (V.Vector Int)
 bowIOVec vocab tokens = stMVtoIO $ bowMVec vocab tokens
     where stMVtoIO v = stToIO $ v >>= V.unsafeFreeze
 
--- PERF: many times slower that mutable version
+-- PERF: many times slower than mutable version
 bowVec :: Vocab -> Doc -> V.Vector Int
 bowVec vocab [] = V.replicate (OS.size vocab) 0
 bowVec vocab (x:xs) = (id <| ((\i -> V.modify (flip3 VM.modify i (+1))) <$> OS.findIndex x vocab)) $ bowVec vocab xs

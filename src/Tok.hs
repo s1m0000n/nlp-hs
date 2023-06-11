@@ -41,7 +41,8 @@ data Value
     | INum Integer 
     | FNum Double 
     | Money Double T.Text
-    | DateTime UTCTime -- not implemented yet
+    | DateTime UTCTime -- WARN: not implemented yet
+    | DomainName T.Text
     | Special String Dynamic -- key, value; for specific custom cases 
     -- | Filepath String
     deriving Show
@@ -90,6 +91,7 @@ class MaybeValueWithType a where
     money :: a -> Maybe (Double, T.Text)
     dateTime :: a -> Maybe UTCTime
     special :: a -> Maybe (String, Dynamic)
+    domainName :: a -> Maybe T.Text
     num :: a -> Maybe Double
     num x = (fromInteger <$> inum x) <|> fnum x
 
@@ -155,6 +157,8 @@ instance MaybeValueWithType Value where
     money _ = Nothing
     dateTime (DateTime dt) = Just dt
     dateTime _ = Nothing
+    domainName (DomainName t) = Just t
+    domainName _ = Nothing
     special (Special k v) = Just (k, v)
     special _ = Nothing
 
@@ -188,6 +192,7 @@ data TokenizerConfig = TokenizerConfig
     , parsePrefixMoney :: Bool                                          -- PERF: ~1/2 added time
     , eliminateHyphens :: Bool                                          -- PERF: slight performance improvement in some cases
     , parseDateTime :: Bool                                             -- WARN: not implemented yet
+    , parseDomainName :: Bool                                           -- TODO: performance estimations
 
     -- filters
     , removeSpaces :: Bool
@@ -227,6 +232,7 @@ defaultTokenizerConfig= TokenizerConfig
     , suffixCurrencyParser = currencyParser
     , lowerCase=True
     , removeWords=False
+    , parseDomainName=True
     } 
   where 
     puncts = ["...", ",", "!", "?", ".", ";", "(", ")", "[", "]", "{", "}", "--", "-", "\\", "`", "<", ">", "@"]
@@ -350,7 +356,23 @@ prefixMoneyParser cfg toks =
         }
     : tail_
 
--- Independent single-pass parser combinations for additional built-in features {
+-- domainNameParserHelper :: [Token] -> Maybe (Token, [Token])
+-- domainNameParserHelper toks =
+--     popT word toks
+--     >>|^ popIfData punct (== ".")
+--     >>|^.|^ (\t -> domainNameParserHelper t <|> popT word t)
+--     >>= \((w1t, w1), ((p1t, p1), ((w2t, w2), t))) -> w1t <>? w2t
+
+domainNameParser :: [Token] -> Maybe (Token, [Token])
+domainNameParser toks = do
+    ((w1t, w1), t) <- popT word toks
+    ((_, p1), t2) <- popIfData punct (== ".") t
+    (w2t, t3) <- domainNameParser t2 <|> popTokenT word t2
+    tok <- w1t <>? w2t
+    w2 <- word $ val w2t
+    pure (tok{ val = DomainName (w1 <> p1 <> w2) }, t3)
+ 
+-- Independent single-pass parser combinations for additional built-in features
 
 independentLevel0Parser :: TokenizerConfig -> [Token] -> [Token]
 independentLevel0Parser cfg toks =
@@ -378,9 +400,8 @@ independentLevel2Parser cfg toks =
         <|> guard (parseSuffixMoney cfg) *> suffixMoneyParser cfg toks
     )
 
--- }
 
--- dynamic parser combinators {
+-- dynamic parser combinators
 
 foldParsers :: [[Token] -> Maybe [Token]] -> [Token] -> Maybe [Token]
 foldParsers = foldr1 (\acc next -> (<|>) <$> next <*> acc)
@@ -389,7 +410,6 @@ finalParserFromIndependentParsers :: ([Token] -> Maybe [Token]) -> [Token] -> [T
 finalParserFromIndependentParsers independentParser toks = 
     nextTok (finalParserFromIndependentParsers independentParser) $ toks <| independentParser toks
 
--- }
 
 tokenize :: TokenizerConfig -> T.Text -> [Token]
 tokenize cfg = 

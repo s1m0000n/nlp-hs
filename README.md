@@ -61,11 +61,12 @@ Some ablation experiments have shown that the most important is agressive inlini
 
 ## Plans
 
-- Improve language detection
+- (almost complete) Rewrite of typed-tokenizer using attoparsec
 - Provide a single coherent interface for common ML approaches (in context of NLP)
 - Provide examples (separate `<project root>/examples`)
 - Fix export lists & add basic documentations on exported entities
 - Add date & time, email, phone parsing
+- Improve language detection
 
 ## Project naming
 

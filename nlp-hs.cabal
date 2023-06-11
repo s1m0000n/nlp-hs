@@ -12,7 +12,7 @@ bug-reports:    https://github.com/s1m0000n/nlp-hs/issues
 author:         Semyon Pogoreltsev
 maintainer:     pogorelcevsa@gmail.com
 copyright:      2023 Semyon Pogoreltsev
-license:        BSD3
+license:        MIT
 license-file:   LICENSE
 build-type:     Simple
 extra-source-files:

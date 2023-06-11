@@ -2,6 +2,7 @@
 -- Module      : Pipeline
 -- Description : Popular ready NLP pipelines & simplified configuration tools
 -- Stability   : experimental
+{-# LANGUAGE ImportQualifiedPost #-}
 module Pipeline (TokenLevelPipelineConfig (..), tokenizer, stemmer, tokenLevelPipeline, defaultTokenLevelPipelineConfig) where
 
 import Control.Conditional ((<|))
